@@ -4,6 +4,11 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from conftest import (
+    TEST_LIVEKIT_API_KEY,
+    TEST_LIVEKIT_API_SECRET,
+    TEST_LIVEKIT_URL,
+)
 from fakes import FakeModel, RecordingSearch, text_chunk
 from fastapi.testclient import TestClient
 
@@ -232,7 +237,10 @@ def test_creating_an_interview_prepares_it(api_database, tmp_path, monkeypatch):
 def test_a_failed_preparation_leaves_the_api_interview_usable(
     api_database, tmp_path, monkeypatch
 ):
-    model = FakeModel([text_chunk("not json")])
+    (tmp_path / "resume.md").write_text("Ten years of Python.", encoding="utf-8")
+    (tmp_path / "jd.md").write_text("Backend engineer.", encoding="utf-8")
+
+    model = FakeModel([text_chunk("not a checklist")])
     monkeypatch.setattr(
         preparation, "inference", SimpleNamespace(LLM=lambda **_: model)
     )
@@ -241,14 +249,22 @@ def test_a_failed_preparation_leaves_the_api_interview_usable(
     )
 
     with TestClient(
-        create_app(api_database, Settings(documents_dir=str(tmp_path)))
+        create_app(
+            api_database,
+            Settings(
+                documents_dir=str(tmp_path),
+                livekit_url=TEST_LIVEKIT_URL,
+                livekit_api_key=TEST_LIVEKIT_API_KEY,
+                livekit_api_secret=TEST_LIVEKIT_API_SECRET,
+            ),
+        )
     ) as client:
         candidate_id = client.post(
             "/candidate/add",
             json={
                 "name": "Ada Lovelace",
                 "email": "ada@example.com",
-                "resume_ref": "r.m",
+                "resume_ref": "resume.md",
             },
         ).json()["id"]
         created = client.post(
