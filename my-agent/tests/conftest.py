@@ -1,7 +1,9 @@
 from uuid import uuid4
 
 import pytest
+from fastapi.testclient import TestClient
 
+from api.app import create_app
 from interview.db import Database
 from interview.enums import Track
 from interview.models import Candidate, ChecklistItem, Interview
@@ -13,6 +15,14 @@ def database(tmp_path):
     db.create_all()
     yield db
     db.dispose()
+
+
+@pytest.fixture
+def api_client(tmp_path):
+    database = Database(f"sqlite:///{tmp_path / 'api.db'}")
+    with TestClient(create_app(database)) as client:
+        yield client
+    database.dispose()
 
 
 @pytest.fixture

@@ -71,8 +71,3 @@ class Database:
 @lru_cache(maxsize=1)
 def get_database() -> Database:
     return Database(get_settings().database_url)
-
-
-def get_session() -> Iterator[Session]:
-    with get_database().session() as session:
-        yield session
