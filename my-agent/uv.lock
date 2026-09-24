@@ -29,6 +29,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pyjwt" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -48,6 +49,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pyjwt", specifier = ">=2.14.0" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },

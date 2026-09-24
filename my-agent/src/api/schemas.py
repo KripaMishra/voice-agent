@@ -88,3 +88,8 @@ class InterviewDetail(InterviewRead):
     checklist_items: list[ChecklistItemRead]
     turns: list[TurnRead]
     task_scores: list[TaskScoreRead]
+
+
+class InterviewStarted(InterviewRead):
+    token: str
+    livekit_url: str

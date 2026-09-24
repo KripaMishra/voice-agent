@@ -5,10 +5,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from api.dependencies import DatabaseDep, SessionDep, SettingsDep
-from api.schemas import InterviewCreate, InterviewDetail, InterviewRead
+from api.schemas import (
+    InterviewCreate,
+    InterviewDetail,
+    InterviewRead,
+    InterviewStarted,
+)
+from config import ConfigurationError
 from interview.enums import InterviewStatus
 from interview.models import Candidate, Interview, utcnow
 from interview.state import InvalidTransitionError, transition_interview
+from interview.tokens import build_candidate_token, room_name_for
 from workflows.preparation import run_preparation
 
 router = APIRouter(prefix="/interview", tags=["interview"])
@@ -61,12 +68,32 @@ def create_interview(
     return interview
 
 
-@router.post("/{interview_id}/start", response_model=InterviewRead)
-def start_interview(interview_id: str, session: SessionDep) -> Interview:
+@router.post("/{interview_id}/start", response_model=InterviewStarted)
+def start_interview(
+    interview_id: str, session: SessionDep, settings: SettingsDep
+) -> InterviewStarted:
     interview = load_interview(session, interview_id)
-    advance(interview, InterviewStatus.IN_PROGRESS)
-    interview.started_at = utcnow()
-    return interview
+
+    try:
+        livekit_url, api_key, api_secret = settings.livekit_credentials()
+    except ConfigurationError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+
+    if interview.status is not InterviewStatus.IN_PROGRESS:
+        advance(interview, InterviewStatus.IN_PROGRESS)
+        interview.started_at = utcnow()
+
+    if interview.room_id is None:
+        interview.room_id = room_name_for(interview.id)
+    session.flush()
+
+    return InterviewStarted(
+        **InterviewRead.model_validate(interview).model_dump(),
+        token=build_candidate_token(
+            room_name=interview.room_id, api_key=api_key, api_secret=api_secret
+        ),
+        livekit_url=livekit_url,
+    )
 
 
 @router.post("/{interview_id}/end", response_model=InterviewRead)
