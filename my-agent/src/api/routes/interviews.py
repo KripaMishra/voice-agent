@@ -16,6 +16,7 @@ from interview.enums import InterviewStatus
 from interview.models import Candidate, Interview, utcnow
 from interview.state import InvalidTransitionError, transition_interview
 from interview.tokens import build_candidate_token, room_name_for
+from workflows.evaluation import run_evaluation
 from workflows.preparation import run_preparation
 
 router = APIRouter(prefix="/interview", tags=["interview"])
@@ -97,12 +98,25 @@ def start_interview(
 
 
 @router.post("/{interview_id}/end", response_model=InterviewRead)
-def end_interview(interview_id: str, session: SessionDep) -> Interview:
+def end_interview(
+    interview_id: str,
+    session: SessionDep,
+    settings: SettingsDep,
+    database: DatabaseDep,
+    background: BackgroundTasks,
+) -> Interview:
     interview = load_interview(session, interview_id)
     if interview.status is InterviewStatus.COMPLETED:
         return interview
     advance(interview, InterviewStatus.COMPLETED)
     interview.ended_at = utcnow()
+
+    # Commit before handing off, for the same reason create does.
+    session.commit()
+
+    background.add_task(
+        run_evaluation, interview.id, settings=settings, database=database
+    )
     return interview
 
 
