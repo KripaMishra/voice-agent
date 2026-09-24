@@ -21,5 +21,11 @@ def settings_dependency(request: Request) -> Settings:
     return settings
 
 
+def database_dependency(request: Request) -> Database:
+    database: Database = request.app.state.database
+    return database
+
+
 SessionDep = Annotated[Session, Depends(session_dependency)]
 SettingsDep = Annotated[Settings, Depends(settings_dependency)]
+DatabaseDep = Annotated[Database, Depends(database_dependency)]

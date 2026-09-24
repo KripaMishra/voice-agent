@@ -1,14 +1,15 @@
 """Interview lifecycle endpoints."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from api.dependencies import SessionDep, SettingsDep
+from api.dependencies import DatabaseDep, SessionDep, SettingsDep
 from api.schemas import InterviewCreate, InterviewDetail, InterviewRead
 from interview.enums import InterviewStatus
 from interview.models import Candidate, Interview, utcnow
 from interview.state import InvalidTransitionError, transition_interview
+from workflows.preparation import run_preparation
 
 router = APIRouter(prefix="/interview", tags=["interview"])
 
@@ -31,7 +32,11 @@ def advance(interview: Interview, target: InterviewStatus) -> None:
     "/create", response_model=InterviewRead, status_code=status.HTTP_201_CREATED
 )
 def create_interview(
-    payload: InterviewCreate, session: SessionDep, settings: SettingsDep
+    payload: InterviewCreate,
+    session: SessionDep,
+    settings: SettingsDep,
+    database: DatabaseDep,
+    background: BackgroundTasks,
 ) -> Interview:
     if session.get(Candidate, payload.candidate_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "no such candidate")
@@ -45,6 +50,14 @@ def create_interview(
     advance(interview, InterviewStatus.PREPARING)
     session.add(interview)
     session.flush()
+
+    # Commit before handing off, so the job cannot start against an interview
+    # that the request's own transaction has not written yet.
+    session.commit()
+
+    background.add_task(
+        run_preparation, interview.id, settings=settings, database=database
+    )
     return interview
 
 

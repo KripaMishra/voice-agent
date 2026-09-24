@@ -8,6 +8,7 @@ from functools import lru_cache
 DEFAULT_DATABASE_URL = "sqlite:///data/interview.db"
 DEFAULT_DOCUMENTS_DIR = "data/documents"
 DEFAULT_SESSION_BUDGET_S = 300
+DEFAULT_WORKFLOW_MODEL = "google/gemini-2.5-flash"
 
 
 class ConfigurationError(RuntimeError):
@@ -44,6 +45,7 @@ class Settings:
     documents_dir: str = DEFAULT_DOCUMENTS_DIR
     session_budget_s: int = DEFAULT_SESSION_BUDGET_S
     tavily_api_key: str | None = None
+    workflow_model: str = DEFAULT_WORKFLOW_MODEL
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -55,6 +57,7 @@ class Settings:
                 source, "SESSION_BUDGET_S", DEFAULT_SESSION_BUDGET_S
             ),
             tavily_api_key=_read_optional_str(source, "TAVILY_API_KEY"),
+            workflow_model=_read_str(source, "WORKFLOW_MODEL", DEFAULT_WORKFLOW_MODEL),
         )
 
     def with_overrides(self, **changes: object) -> "Settings":
