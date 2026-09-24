@@ -1,6 +1,5 @@
 """Building the checklist from a resume, a job description, and company research."""
 
-import json
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -9,6 +8,7 @@ from livekit.agents.llm import LLM
 
 from interview.enums import Track
 from prompts import PromptCatalog, catalog
+from workflows.replies import ReplyError, as_json_object
 from workflows.search import WebSearch, build_search_tool
 from workflows.tool_loop import complete_with_tools
 
@@ -17,10 +17,9 @@ logger = logging.getLogger("workflows.checklist")
 PROMPT_NAME = "checklist_generation"
 SECONDS_PER_QUESTION = 55
 MINIMUM_CAPACITY = 2
-FENCE = "```"
 
 
-class ChecklistError(RuntimeError):
+class ChecklistError(ReplyError):
     """Raised when the model does not return a usable checklist."""
 
 
@@ -70,7 +69,7 @@ def _brief(resume: str, jd: str) -> str:
 
 
 def parse_checklist(reply: str) -> list[GeneratedItem]:
-    payload = _as_json_object(reply)
+    payload = as_json_object(reply, error=ChecklistError, what="checklist reply")
     entries = payload.get("items")
     if not isinstance(entries, list):
         raise ChecklistError("the checklist reply had no items list")
@@ -99,31 +98,3 @@ def _as_item(entry: Any) -> GeneratedItem | None:
     if not isinstance(text, str) or not text.strip():
         return None
     return GeneratedItem(track=track, text=text.strip())
-
-
-def _as_json_object(reply: str) -> dict[str, Any]:
-    text = _strip_fences(reply)
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end <= start:
-        raise ChecklistError("the checklist reply contained no JSON object")
-    try:
-        payload = json.loads(text[start : end + 1])
-    except json.JSONDecodeError as exc:
-        raise ChecklistError(f"the checklist reply was not valid JSON: {exc}") from exc
-    if not isinstance(payload, dict):
-        raise ChecklistError("the checklist reply was not a JSON object")
-    return payload
-
-
-def _strip_fences(reply: str) -> str:
-    text = reply.strip()
-    if not text.startswith(FENCE):
-        return text
-    body = text[len(FENCE) :]
-    newline = body.find("\n")
-    if newline != -1:
-        body = body[newline + 1 :]
-    closing = body.rfind(FENCE)
-    if closing != -1:
-        body = body[:closing]
-    return body.strip()
