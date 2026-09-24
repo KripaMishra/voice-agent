@@ -1,47 +1,14 @@
 """Driving a running interview: turns, checklist progress, and the clock."""
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
 
 import pytest
 
-from interview.enums import ChecklistStatus, InterviewStatus, Track, TurnRole
-from interview.models import Candidate, ChecklistItem, Interview, Turn
-from workflows.session import InterviewSession, SessionError
+from interview.enums import ChecklistStatus, InterviewStatus, TurnRole
+from interview.models import ChecklistItem, Interview, Turn
+from workflows.session import InterviewSession, SessionError, complete_interview
 
 STARTED = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
-
-
-@pytest.fixture
-def make_session(database):
-    def _make(*, items=("Q1", "Q2"), status=InterviewStatus.IN_PROGRESS, **overrides):
-        with database.session() as session:
-            candidate = Candidate(
-                name="Ada Lovelace", email=f"ada-{uuid4().hex[:8]}@example.com"
-            )
-            interview = Interview(
-                candidate=candidate,
-                jd_ref="jd.md",
-                time_budget_s=300,
-                status=status,
-                **overrides,
-            )
-            session.add(interview)
-            session.flush()
-            item_ids = []
-            for position, text in enumerate(items):
-                item = ChecklistItem(
-                    interview_id=interview.id,
-                    track=Track.RESUME,
-                    text=text,
-                    position=position,
-                )
-                session.add(item)
-                session.flush()
-                item_ids.append(item.id)
-            return InterviewSession(interview.id, database), item_ids
-
-    return _make
 
 
 def test_records_a_turn_against_the_interview(database, make_session):
@@ -158,6 +125,41 @@ def test_formats_the_checklist_with_ids(make_session):
 
     assert f"- [{item_ids[0]}] Why?" in formatted
     assert f"- [{item_ids[1]}] How?" in formatted
+
+
+def test_completing_a_running_interview_stamps_the_end_time(database, make_session):
+    session, _ = make_session()
+
+    assert complete_interview(session.interview_id, database) is True
+
+    with database.session() as db:
+        interview = db.get(Interview, session.interview_id)
+        assert interview.status is InterviewStatus.COMPLETED
+        assert interview.ended_at is not None
+
+
+def test_completing_an_interview_twice_reports_no_change(database, make_session):
+    session, _ = make_session()
+    complete_interview(session.interview_id, database)
+
+    assert complete_interview(session.interview_id, database) is False
+
+
+def test_an_interview_that_was_never_running_is_left_alone(database, make_session):
+    session, _ = make_session(status=InterviewStatus.READY)
+
+    assert complete_interview(session.interview_id, database) is False
+
+
+def test_an_unknown_interview_reports_no_change(database):
+    assert complete_interview("nope", database) is False
+
+
+def test_a_session_can_complete_its_own_interview(database, make_session):
+    session, _ = make_session()
+
+    assert session.complete() is True
+    assert session.complete() is False
 
 
 def _status(database, item_id: str) -> ChecklistStatus:

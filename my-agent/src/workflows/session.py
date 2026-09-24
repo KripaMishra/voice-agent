@@ -9,16 +9,34 @@ from collections.abc import Callable
 from datetime import datetime
 
 from interview.db import Database
-from interview.enums import ChecklistStatus, TurnRole
+from interview.enums import ChecklistStatus, InterviewStatus, TurnRole
 from interview.models import ChecklistItem, Interview, Turn, utcnow
 from interview.state import (
     InvalidTransitionError,
     transition_checklist_item,
+    transition_interview,
 )
 
 
 class SessionError(RuntimeError):
     """Raised when a session cannot be driven."""
+
+
+def complete_interview(interview_id: str, database: Database) -> bool:
+    """Close out a running interview, returning whether it changed anything.
+
+    Safe to call from both the API and the agent, so a candidate hanging up and
+    the clock running out cannot fight over the same interview.
+    """
+    with database.session() as session:
+        interview = session.get(Interview, interview_id)
+        if interview is None or interview.status is not InterviewStatus.IN_PROGRESS:
+            return False
+        interview.status = transition_interview(
+            interview.status, InterviewStatus.COMPLETED
+        )
+        interview.ended_at = utcnow()
+        return True
 
 
 class InterviewSession:
@@ -112,3 +130,10 @@ class InterviewSession:
             return "\n".join(
                 f"- [{item.id}] {item.text}" for item in interview.checklist_items
             )
+
+    def time_budget_seconds(self) -> int:
+        with self._database.session() as session:
+            return self._interview(session).time_budget_s
+
+    def complete(self) -> bool:
+        return complete_interview(self.interview_id, self._database)
