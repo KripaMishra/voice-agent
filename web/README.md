@@ -1,32 +1,44 @@
-# React + TypeScript + Vite
+# web
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The browser UI. React and TypeScript on Vite, talking to the API in
+`../my-agent`.
 
-Currently, two official plugins are available:
+Three views for a recruiter — the candidate list, a candidate's interviews, and
+one interview showing its checklist against the scores with the transcript
+below — plus a call page a candidate uses to join the interview room.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+See the [top-level README](../README.md) for how to run the whole thing.
 
-## React Compiler
+## Running
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev      # http://localhost:5173
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The dev server proxies `/candidate` and `/interview` to `127.0.0.1:8000`, so the
+browser stays on one origin and development needs no CORS. Start the API with:
+
+```bash
+cd ../my-agent && uv run uvicorn api.app:app --port 8000
+```
+
+## Checks
+
+```bash
+npm run build    # tsc -b && vite build
+npm run lint
+```
+
+There are no frontend tests; the build, the typecheck, and the lint are the
+coverage.
+
+## Notes
+
+- `src/types.ts` mirrors the API schemas by hand. Nothing generates them.
+- `livekit-client` is far larger than the rest of the app combined, so the call
+  page is lazy-loaded. The initial bundle is about 86 kB gzipped against 135 kB
+  for the call page alone.
+- TypeScript `strict` is on, which the Vite template did not enable.
+- `R` refreshes on every page, and the interview screen polls itself while the
+  checklist is being generated.
