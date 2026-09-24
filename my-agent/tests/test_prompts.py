@@ -62,3 +62,15 @@ def test_the_shipped_checklist_prompt_renders_without_leftover_placeholders():
     assert "about 5 questions" in rendered
     assert "about 10 questions" in rendered
     assert "$" not in rendered
+
+
+def test_the_shipped_interviewer_prompt_renders_without_leftover_placeholders():
+    rendered = catalog.render("interviewer", budget=300, checklist="- [abc] Why?")
+
+    assert "300 seconds" in rendered
+    assert "- [abc] Why?" in rendered
+    assert "$" not in rendered
+
+
+def test_the_shipped_evaluation_prompt_has_no_placeholders_to_fill():
+    assert "$" not in catalog.load("evaluation")
