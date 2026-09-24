@@ -4,9 +4,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.app import create_app
+from config import Settings
 from interview.db import Database
 from interview.enums import Track
 from interview.models import Candidate, ChecklistItem, Interview
+
+TEST_LIVEKIT_URL = "wss://test.livekit.cloud"
+TEST_LIVEKIT_API_KEY = "test-key"
+TEST_LIVEKIT_API_SECRET = "test-secret-long-enough-to-satisfy-hs256"
 
 
 @pytest.fixture
@@ -25,8 +30,17 @@ def api_database(tmp_path):
 
 
 @pytest.fixture
-def api_client(api_database):
-    with TestClient(create_app(api_database)) as client:
+def api_settings():
+    return Settings(
+        livekit_url=TEST_LIVEKIT_URL,
+        livekit_api_key=TEST_LIVEKIT_API_KEY,
+        livekit_api_secret=TEST_LIVEKIT_API_SECRET,
+    )
+
+
+@pytest.fixture
+def api_client(api_database, api_settings):
+    with TestClient(create_app(api_database, api_settings)) as client:
         yield client
 
 

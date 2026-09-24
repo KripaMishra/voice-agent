@@ -1,6 +1,8 @@
 """Interview lifecycle endpoints."""
 
+from conftest import TEST_LIVEKIT_URL
 from fastapi.testclient import TestClient
+from jwt import decode
 
 from api.app import create_app
 from config import Settings
@@ -100,6 +102,47 @@ def test_start_moves_a_ready_interview_into_progress(api_client, api_database):
     body = response.json()
     assert body["status"] == "in_progress"
     assert body["started_at"] is not None
+
+
+def test_start_returns_a_join_token_for_the_interview_room(api_client, api_database):
+    candidate_id = add_candidate(api_client)
+    interview_id = create_interview(api_client, candidate_id).json()["id"]
+    force_status(api_database, interview_id, InterviewStatus.READY)
+
+    body = api_client.post(f"/interview/{interview_id}/start").json()
+
+    assert body["room_id"] == f"interview-{interview_id}"
+    assert body["livekit_url"] == TEST_LIVEKIT_URL
+
+    claims = decode(body["token"], options={"verify_signature": False})
+    assert claims["sub"] == "candidate"
+    assert claims["video"]["room"] == body["room_id"]
+    assert claims["video"]["roomJoin"] is True
+
+
+def test_start_hands_out_another_token_when_already_running(api_client, api_database):
+    candidate_id = add_candidate(api_client)
+    interview_id = create_interview(api_client, candidate_id).json()["id"]
+    force_status(api_database, interview_id, InterviewStatus.READY)
+
+    first = api_client.post(f"/interview/{interview_id}/start")
+    second = api_client.post(f"/interview/{interview_id}/start")
+
+    assert second.status_code == 200
+    assert second.json()["room_id"] == first.json()["room_id"]
+    assert second.json()["started_at"] == first.json()["started_at"]
+
+
+def test_start_without_livekit_credentials_is_unavailable(api_database):
+    with TestClient(create_app(api_database, Settings())) as client:
+        candidate_id = add_candidate(client)
+        interview_id = create_interview(client, candidate_id).json()["id"]
+        force_status(api_database, interview_id, InterviewStatus.READY)
+
+        response = client.post(f"/interview/{interview_id}/start")
+
+        assert response.status_code == 503
+        assert client.get(f"/interview/{interview_id}").json()["status"] == "ready"
 
 
 def test_start_unknown_interview_is_not_found(api_client):

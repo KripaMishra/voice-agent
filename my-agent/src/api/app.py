@@ -3,11 +3,14 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from api.routes import candidates, interviews
 from config import Settings, get_settings
 from interview.db import Database, get_database
+
+load_dotenv(".env.local")
 
 
 @asynccontextmanager
