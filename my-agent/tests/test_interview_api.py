@@ -1,13 +1,35 @@
 """Interview lifecycle endpoints."""
 
+from types import SimpleNamespace
+
+import pytest
 from conftest import TEST_LIVEKIT_URL
 from fastapi.testclient import TestClient
 from jwt import decode
 
+import api.routes.interviews as interviews
 from api.app import create_app
 from config import Settings
 from interview.enums import ChecklistStatus, InterviewStatus, Track, TurnRole
 from interview.models import ChecklistItem, Interview, TaskScore, Turn
+
+
+@pytest.fixture(autouse=True)
+def offline_jobs(monkeypatch):
+    """Keep lifecycle tests off the network; the jobs are covered in their own tests."""
+    preparation: list[str] = []
+    evaluation: list[str] = []
+    monkeypatch.setattr(
+        interviews,
+        "run_preparation",
+        lambda interview_id, **_: preparation.append(interview_id),
+    )
+    monkeypatch.setattr(
+        interviews,
+        "run_evaluation",
+        lambda interview_id, **_: evaluation.append(interview_id),
+    )
+    return SimpleNamespace(preparation=preparation, evaluation=evaluation)
 
 
 def add_candidate(client, **overrides):
@@ -277,6 +299,35 @@ def test_deleting_a_candidate_removes_their_interviews(api_client):
     api_client.delete(f"/candidate/{candidate_id}")
 
     assert api_client.get(f"/interview/{interview_id}").status_code == 404
+
+
+def test_create_schedules_checklist_generation(api_client, offline_jobs):
+    candidate_id = add_candidate(api_client)
+
+    interview_id = create_interview(api_client, candidate_id).json()["id"]
+
+    assert offline_jobs.preparation == [interview_id]
+
+
+def test_end_schedules_scoring(api_client, api_database, offline_jobs):
+    candidate_id = add_candidate(api_client)
+    interview_id = create_interview(api_client, candidate_id).json()["id"]
+    force_status(api_database, interview_id, InterviewStatus.IN_PROGRESS)
+
+    api_client.post(f"/interview/{interview_id}/end")
+
+    assert offline_jobs.evaluation == [interview_id]
+
+
+def test_ending_twice_does_not_score_twice(api_client, api_database, offline_jobs):
+    candidate_id = add_candidate(api_client)
+    interview_id = create_interview(api_client, candidate_id).json()["id"]
+    force_status(api_database, interview_id, InterviewStatus.IN_PROGRESS)
+
+    api_client.post(f"/interview/{interview_id}/end")
+    api_client.post(f"/interview/{interview_id}/end")
+
+    assert offline_jobs.evaluation == [interview_id]
 
 
 def test_interview_lifecycle_survives_a_round_trip_through_storage(
