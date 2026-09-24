@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from string import Template
 
 DEFAULT_PROMPT_DIR = Path(__file__).parent
 PROMPT_SUFFIX = ".md"
@@ -29,6 +30,9 @@ class PromptCatalog:
         if not text:
             raise PromptNotFoundError(f"prompt {name!r} is empty")
         return text
+
+    def render(self, name: str, /, **values: object) -> str:
+        return Template(self.load(name)).substitute(**values)
 
 
 catalog = PromptCatalog(DEFAULT_PROMPT_DIR)
