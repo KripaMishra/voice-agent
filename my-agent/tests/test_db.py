@@ -190,3 +190,26 @@ def test_a_turn_can_exist_without_a_checklist_item(session, build_interview):
     interview.turns.append(Turn(role=TurnRole.AGENT, text="Welcome."))
     session.flush()
     assert interview.turns[0].checklist_item_id is None
+
+
+def test_timestamps_stay_timezone_aware_across_a_read(database, build_interview):
+    with database.session() as session:
+        interview = build_interview(session)
+        created_at = interview.created_at
+        interview_id = interview.id
+
+    assert created_at.tzinfo is not None
+
+    with database.session() as session:
+        reloaded = session.get(Interview, interview_id)
+        assert reloaded.created_at.tzinfo is not None
+        assert reloaded.created_at == created_at
+
+
+def test_a_naive_timestamp_is_refused(session, build_interview):
+    interview = build_interview(session)
+    interview.ended_at = datetime(2026, 1, 1)
+
+    with pytest.raises(exc.StatementError, match="timezone-aware"):
+        session.flush()
+    session.rollback()

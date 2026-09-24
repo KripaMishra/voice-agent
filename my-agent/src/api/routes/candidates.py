@@ -6,8 +6,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.dependencies import SessionDep
-from api.schemas import CandidateCreate, CandidateRead, CandidateUpdate
-from interview.models import Candidate
+from api.schemas import (
+    CandidateCreate,
+    CandidateRead,
+    CandidateUpdate,
+    InterviewRead,
+)
+from interview.models import Candidate, Interview
 
 router = APIRouter(prefix="/candidate", tags=["candidate"])
 
@@ -54,6 +59,20 @@ def update_candidate(
         setattr(candidate, field, value)
     _flush_or_conflict(session)
     return candidate
+
+
+@router.get("/{candidate_id}/interviews", response_model=list[InterviewRead])
+def list_candidate_interviews(
+    candidate_id: str, session: SessionDep
+) -> list[Interview]:
+    load_candidate(session, candidate_id)
+    return list(
+        session.scalars(
+            select(Interview)
+            .where(Interview.candidate_id == candidate_id)
+            .order_by(Interview.created_at.desc(), Interview.id)
+        )
+    )
 
 
 @router.delete("/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)
