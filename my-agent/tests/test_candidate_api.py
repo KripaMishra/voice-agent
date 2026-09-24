@@ -45,6 +45,26 @@ def test_add_rejects_unknown_fields(api_client):
     assert add_candidate(api_client, nickname="Ada").status_code == 422
 
 
+def test_get_returns_a_single_candidate(api_client):
+    candidate_id = add_candidate(api_client, resume_ref="resumes/ada.pdf").json()["id"]
+
+    body = api_client.get(f"/candidate/{candidate_id}").json()
+
+    assert body["id"] == candidate_id
+    assert body["name"] == "Ada Lovelace"
+    assert body["resume_ref"] == "resumes/ada.pdf"
+
+
+def test_get_unknown_candidate_is_not_found(api_client):
+    assert api_client.get("/candidate/nope").status_code == 404
+
+
+def test_list_is_not_shadowed_by_the_single_candidate_route(api_client):
+    add_candidate(api_client)
+
+    assert isinstance(api_client.get("/candidate/list").json(), list)
+
+
 def test_list_is_empty_before_anything_is_added(api_client):
     assert api_client.get("/candidate/list").json() == []
 

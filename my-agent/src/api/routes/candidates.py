@@ -50,6 +50,11 @@ def list_candidates(session: SessionDep) -> list[Candidate]:
     )
 
 
+@router.get("/{candidate_id}", response_model=CandidateRead)
+def get_candidate(candidate_id: str, session: SessionDep) -> Candidate:
+    return load_candidate(session, candidate_id)
+
+
 @router.patch("/{candidate_id}", response_model=CandidateRead)
 def update_candidate(
     candidate_id: str, payload: CandidateUpdate, session: SessionDep
