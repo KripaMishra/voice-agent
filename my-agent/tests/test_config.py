@@ -58,6 +58,19 @@ def test_overrides_replace_individual_fields():
     assert patched.database_url == base.database_url
 
 
+def test_search_key_defaults_to_none():
+    assert Settings.from_env({}).tavily_api_key is None
+
+
+def test_search_key_is_read_from_env():
+    assert Settings.from_env({"TAVILY_API_KEY": " abc "}).tavily_api_key == "abc"
+
+
+@pytest.mark.parametrize("raw", ["", "   "])
+def test_blank_search_key_is_treated_as_unset(raw):
+    assert Settings.from_env({"TAVILY_API_KEY": raw}).tavily_api_key is None
+
+
 def test_settings_are_immutable():
     with pytest.raises(FrozenInstanceError):
         Settings.from_env({}).session_budget_s = 10
