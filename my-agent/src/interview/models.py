@@ -17,6 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
 
 from interview.enums import ChecklistStatus, InterviewStatus, Track, TurnRole
 
@@ -31,6 +32,36 @@ def new_id() -> str:
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+class UTCDateTime(TypeDecorator[datetime]):
+    """Timezone-aware UTC that survives backends which drop the offset.
+
+    SQLite hands back naive datetimes, so without this the same instant would
+    serialize with a UTC offset straight after a write and without one once it
+    has been read back.
+    """
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(
+        self, value: datetime | None, _dialect: object
+    ) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            raise ValueError("expected a timezone-aware datetime")
+        return value.astimezone(UTC)
+
+    def process_result_value(
+        self, value: datetime | None, _dialect: object
+    ) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
 
 def _enum_column(enum_type: type[Enum], length: int) -> SAEnum:
@@ -69,15 +100,9 @@ class Interview(Base):
         _enum_column(InterviewStatus, 16), default=InterviewStatus.CREATED
     )
     time_budget_s: Mapped[int] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow
-    )
-    started_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=None
-    )
-    ended_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=None
-    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
+    ended_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
 
     candidate: Mapped[Candidate] = relationship(back_populates="interviews")
     checklist_items: Mapped[list[ChecklistItem]] = relationship(
@@ -126,7 +151,7 @@ class Turn(Base):
     )
     role: Mapped[TurnRole] = mapped_column(_enum_column(TurnRole, 16))
     text: Mapped[str] = mapped_column(Text)
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     interview: Mapped[Interview] = relationship(back_populates="turns")
 
@@ -149,9 +174,7 @@ class TaskScore(Base):
     )
     score: Mapped[int] = mapped_column(Integer)
     rationale: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow
-    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     interview: Mapped[Interview] = relationship(back_populates="task_scores")
     checklist_item: Mapped[ChecklistItem] = relationship(back_populates="task_scores")
