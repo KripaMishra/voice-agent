@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
+from config import Settings
 from interview.db import Database
 
 
@@ -15,4 +16,10 @@ def session_dependency(request: Request) -> Iterator[Session]:
         yield session
 
 
+def settings_dependency(request: Request) -> Settings:
+    settings: Settings = request.app.state.settings
+    return settings
+
+
 SessionDep = Annotated[Session, Depends(session_dependency)]
+SettingsDep = Annotated[Settings, Depends(settings_dependency)]
