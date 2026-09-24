@@ -13,11 +13,15 @@ class ConfigurationError(RuntimeError):
     """Raised when an environment value is present but unusable."""
 
 
-def _read_str(env: Mapping[str, str], key: str, default: str) -> str:
+def _read_optional_str(env: Mapping[str, str], key: str) -> str | None:
     raw = env.get(key)
     if raw is None or not raw.strip():
-        return default
+        return None
     return raw.strip()
+
+
+def _read_str(env: Mapping[str, str], key: str, default: str) -> str:
+    return _read_optional_str(env, key) or default
 
 
 def _read_positive_int(env: Mapping[str, str], key: str, default: int) -> int:
@@ -37,6 +41,7 @@ def _read_positive_int(env: Mapping[str, str], key: str, default: int) -> int:
 class Settings:
     database_url: str = DEFAULT_DATABASE_URL
     session_budget_s: int = DEFAULT_SESSION_BUDGET_S
+    tavily_api_key: str | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -46,6 +51,7 @@ class Settings:
             session_budget_s=_read_positive_int(
                 source, "SESSION_BUDGET_S", DEFAULT_SESSION_BUDGET_S
             ),
+            tavily_api_key=_read_optional_str(source, "TAVILY_API_KEY"),
         )
 
     def with_overrides(self, **changes: object) -> "Settings":
