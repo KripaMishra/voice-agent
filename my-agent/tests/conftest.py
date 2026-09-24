@@ -18,11 +18,16 @@ def database(tmp_path):
 
 
 @pytest.fixture
-def api_client(tmp_path):
+def api_database(tmp_path):
     database = Database(f"sqlite:///{tmp_path / 'api.db'}")
-    with TestClient(create_app(database)) as client:
-        yield client
+    yield database
     database.dispose()
+
+
+@pytest.fixture
+def api_client(api_database):
+    with TestClient(create_app(api_database)) as client:
+        yield client
 
 
 @pytest.fixture
