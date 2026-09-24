@@ -62,6 +62,16 @@ def test_search_key_defaults_to_none():
     assert Settings.from_env({}).tavily_api_key is None
 
 
+def test_documents_dir_defaults_under_data():
+    assert Settings.from_env({}).documents_dir == "data/documents"
+
+
+def test_documents_dir_is_read_from_env():
+    assert (
+        Settings.from_env({"DOCUMENTS_DIR": "/srv/docs"}).documents_dir == "/srv/docs"
+    )
+
+
 def test_search_key_is_read_from_env():
     assert Settings.from_env({"TAVILY_API_KEY": " abc "}).tavily_api_key == "abc"
 

@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from functools import lru_cache
 
 DEFAULT_DATABASE_URL = "sqlite:///data/interview.db"
+DEFAULT_DOCUMENTS_DIR = "data/documents"
 DEFAULT_SESSION_BUDGET_S = 300
 
 
@@ -40,6 +41,7 @@ def _read_positive_int(env: Mapping[str, str], key: str, default: int) -> int:
 @dataclass(frozen=True)
 class Settings:
     database_url: str = DEFAULT_DATABASE_URL
+    documents_dir: str = DEFAULT_DOCUMENTS_DIR
     session_budget_s: int = DEFAULT_SESSION_BUDGET_S
     tavily_api_key: str | None = None
 
@@ -48,6 +50,7 @@ class Settings:
         source = os.environ if env is None else env
         return cls(
             database_url=_read_str(source, "DATABASE_URL", DEFAULT_DATABASE_URL),
+            documents_dir=_read_str(source, "DOCUMENTS_DIR", DEFAULT_DOCUMENTS_DIR),
             session_budget_s=_read_positive_int(
                 source, "SESSION_BUDGET_S", DEFAULT_SESSION_BUDGET_S
             ),
