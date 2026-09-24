@@ -1,6 +1,6 @@
 import pytest
 
-from prompts import PromptCatalog, PromptNotFoundError
+from prompts import PromptCatalog, PromptNotFoundError, catalog
 
 
 def test_loads_and_strips_prompt_text(tmp_path):
@@ -38,3 +38,27 @@ def test_prompt_lookup_does_not_fall_back_to_other_suffixes(tmp_path):
     (tmp_path / "greeting.txt").write_text("Hello", encoding="utf-8")
     with pytest.raises(PromptNotFoundError):
         PromptCatalog(tmp_path).load("greeting")
+
+
+def test_renders_a_prompt_with_values(tmp_path):
+    (tmp_path / "greet.md").write_text("Hello $name.", encoding="utf-8")
+
+    assert PromptCatalog(tmp_path).render("greet", name="Ada") == "Hello Ada."
+
+
+def test_rendering_reports_a_value_the_prompt_needs(tmp_path):
+    (tmp_path / "greet.md").write_text("Hello $name.", encoding="utf-8")
+
+    with pytest.raises(KeyError):
+        PromptCatalog(tmp_path).render("greet")
+
+
+def test_the_shipped_checklist_prompt_renders_without_leftover_placeholders():
+    rendered = catalog.render(
+        "checklist_generation", budget_seconds=300, capacity=5, pool=10
+    )
+
+    assert "300 seconds" in rendered
+    assert "about 5 questions" in rendered
+    assert "about 10 questions" in rendered
+    assert "$" not in rendered
