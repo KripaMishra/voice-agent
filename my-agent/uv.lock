@@ -18,6 +18,7 @@ version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "livekit-agents" },
     { name = "livekit-plugins-ai-coustics" },
     { name = "pydantic", extra = ["email"] },
@@ -36,6 +37,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "livekit-agents", specifier = ">=1.6.9" },
     { name = "livekit-plugins-ai-coustics", specifier = "~=0.2" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.13.5" },
