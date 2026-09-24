@@ -6,8 +6,9 @@ from fastapi.testclient import TestClient
 from api.app import create_app
 from config import Settings
 from interview.db import Database
-from interview.enums import Track
+from interview.enums import InterviewStatus, Track
 from interview.models import Candidate, ChecklistItem, Interview
+from workflows.session import InterviewSession
 
 TEST_LIVEKIT_URL = "wss://test.livekit.cloud"
 TEST_LIVEKIT_API_KEY = "test-key"
@@ -42,6 +43,40 @@ def api_settings():
 def api_client(api_database, api_settings):
     with TestClient(create_app(api_database, api_settings)) as client:
         yield client
+
+
+@pytest.fixture
+def make_session(database):
+    """An interview in the store, wrapped in a session, with its item ids."""
+
+    def _make(*, items=("Q1", "Q2"), status=InterviewStatus.IN_PROGRESS, **overrides):
+        with database.session() as session:
+            candidate = Candidate(
+                name="Ada Lovelace", email=f"ada-{uuid4().hex[:8]}@example.com"
+            )
+            interview = Interview(
+                candidate=candidate,
+                jd_ref="jd.md",
+                time_budget_s=300,
+                status=status,
+                **overrides,
+            )
+            session.add(interview)
+            session.flush()
+            item_ids = []
+            for position, text in enumerate(items):
+                item = ChecklistItem(
+                    interview_id=interview.id,
+                    track=Track.RESUME,
+                    text=text,
+                    position=position,
+                )
+                session.add(item)
+                session.flush()
+                item_ids.append(item.id)
+            return InterviewSession(interview.id, database), item_ids
+
+    return _make
 
 
 @pytest.fixture

@@ -1,50 +1,58 @@
-# Agent behavior is covered by the simulations in scenarios.yaml, which run full
-# conversations against the agent on LiveKit Cloud (see README.md). The eval
-# below is kept as an example of the in-process testing framework
-# (https://docs.livekit.io/agents/start/testing/) for turn-level checks that
-# don't need a live session. Uncomment it and run `uv run pytest` to use it.
-#
-# import textwrap
-#
-# import pytest
-# from livekit.agents import AgentSession, inference, llm
-#
-# from agent import Assistant
-#
-#
-# def _judge_llm() -> llm.LLM:
-#     return inference.LLM(model="openai/gpt-4.1-mini")
-#
-#
-# @pytest.mark.asyncio
-# async def test_offers_assistance() -> None:
-#     """Evaluation of the agent's friendly nature."""
-#     async with (
-#         _judge_llm() as judge_llm,
-#         AgentSession() as session,
-#     ):
-#         await session.start(Assistant())
-#
-#         # Run an agent turn following the user's greeting
-#         result = await session.run(user_input="Hello")
-#
-#         # Evaluate the agent's response for friendliness
-#         await (
-#             result.expect.next_event()
-#             .is_message(role="assistant")
-#             .judge(
-#                 judge_llm,
-#                 intent=textwrap.dedent(
-#                     """\
-#                     Greets the user in a friendly manner.
-#
-#                     Optional context that may or may not be included:
-#                     - Offer of assistance with any request the user may have
-#                     - Other small talk or chit chat is acceptable, so long as it is friendly and not too intrusive
-#                     """
-#                 ),
-#             )
-#         )
-#
-#         # Ensures there are no function calls or other unexpected events
-#         result.expect.no_more_events()
+"""The interviewer agent's pieces that do not need a live session."""
+
+import pytest
+from livekit.agents import llm
+from livekit.agents.llm.tool_context import is_function_tool
+
+from agent import Interviewer, interview_id_from_room, message_text
+
+
+@pytest.mark.parametrize(
+    ("room_name", "expected"),
+    [
+        ("interview-abc123", "abc123"),
+        ("interview-", None),
+        ("interview", None),
+        ("other-room", None),
+        ("", None),
+    ],
+)
+def test_room_names_map_back_to_interviews(room_name, expected):
+    assert interview_id_from_room(room_name) == expected
+
+
+def test_joins_the_text_parts_of_a_message():
+    message = llm.ChatMessage(role="assistant", content=["  Hello.  ", "Again."])
+
+    assert message_text(message) == "Hello. Again."
+
+
+def test_a_message_with_no_text_comes_back_empty():
+    assert message_text(llm.ChatMessage(role="assistant", content=["   "])) == ""
+
+
+def test_the_interviewer_exposes_a_record_answer_tool():
+    tool = Interviewer.__dict__["record_answer"]
+
+    assert is_function_tool(tool)
+    assert tool.id == "record_answer"
+    assert "checklist item" in tool.info.description
+
+
+async def test_record_answer_closes_the_item(make_session):
+    session, item_ids = make_session()
+    interviewer = Interviewer(instructions="x", session=session)
+
+    result = await interviewer.record_answer(None, item_ids[0])
+
+    assert result == "recorded"
+    assert [item.id for item in session.pending_items()] == item_ids[1:]
+
+
+async def test_record_answer_reports_a_bad_item_instead_of_raising(make_session):
+    session, _ = make_session()
+    interviewer = Interviewer(instructions="x", session=session)
+
+    result = await interviewer.record_answer(None, "not-an-item")
+
+    assert "could not record" in result
